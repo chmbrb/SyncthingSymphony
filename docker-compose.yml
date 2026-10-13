@@ -1,0 +1,31 @@
+services:
+  syncthing:
+    image: syncthing/syncthing:latest
+    container_name: syncthing
+    hostname: syncthing-master
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+    volumes:
+      - ./data:/var/syncthing/data
+      - ./config:/var/syncthing/config
+    ports:
+      - "${GUI_BIND:-127.0.0.1}:8384:8384"
+      - "22000:22000/tcp"
+      - "22000:22000/udp"
+      - "21027:21027/udp"
+
+  restic:
+    image: restic/restic:latest
+    container_name: syncthing-backup
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    environment:
+      - RESTIC_REPOSITORY=/repo
+      - RESTIC_PASSWORD=${RESTIC_PASSWORD:?set RESTIC_PASSWORD in .env}
+      - BACKUP_INTERVAL=${BACKUP_INTERVAL:-3600}
+    volumes:
+      - ./data:/data:ro
+      - ./backups:/repo
+      - ./backup/entrypoint.sh:/entrypoint.sh:ro

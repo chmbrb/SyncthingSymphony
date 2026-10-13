@@ -1,0 +1,12 @@
+# Overlay for SELinux hosts (Fedora/RHEL). Relabels bind mounts so containers may access them.
+# Use: docker compose -f docker-compose.yml -f docker-compose.selinux.yml up -d
+services:
+  syncthing:
+    volumes:
+      - ./data:/var/syncthing/data:z
+      - ./config:/var/syncthing/config:z
+  restic:
+    volumes:
+      - ./data:/data:ro,z
+      - ./backups:/repo:z
+      - ./backup/entrypoint.sh:/entrypoint.sh:ro,z
