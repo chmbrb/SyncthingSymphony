@@ -1,4 +1,4 @@
-# Syncthing Synchronizer
+# Syncthing Symphony
 
 Always-on Syncthing master ("Copy A") with hourly restic backups.
 
