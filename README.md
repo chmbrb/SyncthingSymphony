@@ -7,7 +7,7 @@ Always-on Syncthing master ("Copy A") with hourly restic backups.
    (otherwise Docker creates them as root and Syncthing fails with `syncthing.lock: permission denied`):
    `mkdir -p data config backups && sudo chown -R "$(id -u):$(id -g)" data config && chmod 700 config`
    (`backups/` may stay root-owned.) Set `PUID`/`PGID` in `.env` to match `id -u` / `id -g`.
-1. `cp .env.example .env` and set `RESTIC_PASSWORD` (and `GUI_BIND` if needed). `GUI_BIND=0.0.0.0`
+1. `cp .env.example .env` (set `GUI_BIND` if needed) and create the restic secret (see "Restic password" below). `GUI_BIND=0.0.0.0`
    exposes the GUI to the whole LAN: set the GUI password immediately, or bind to a specific LAN IP.
 2. `docker compose up -d`
 3. Open http://127.0.0.1:8384, set a GUI username/password immediately.
@@ -130,6 +130,55 @@ Notes:
 - Devices sharing the same folder can see each other's device IDs, so keep unrelated folders separate.
 - This is a sharing policy, not a boundary against someone with GUI or `config/` access to Copy A.
 - Use Send Only (Copy A) / Receive Only (employee) for folders employees should never alter.
+
+## Storage layout
+| Directory | Holds | Backed up by restic |
+|---|---|---|
+| `data/` | the synced files, plus each folder's `.stversions` | yes (read-only mount) |
+| `config/` | device key/cert, `config.xml` (folders, devices, GUI password hash) | yes, excluding the rebuildable index DB (`index*`) and the lock file |
+| `backups/` | the restic repository | no (it is the backup) |
+
+- Put `backups/` on a different physical disk than `data/` and `config/`; if they share a disk, one
+  failure loses the data and its backups together. Plain bind mounts on the separate drive are enough;
+  a Docker named volume adds no redundancy (it lives on the Docker data root unless bind-backed).
+- Losing `config/` means a new device ID, and every peer must be re-paired. It is backed up for that reason.
+- The restic repo is encrypted, so including the device key is safe, but keep the restic passphrase
+  stored separately from the host (see "Restic password").
+- Off-host copy (SFTP/S3/B2 or `restic copy`) is not set up yet; it protects against theft, fire and
+  ransomware on the host.
+- Restore `config/`: stop the stack, `restic restore latest --target /tmp/r --include /config`,
+  copy the files back into `./config`, `chown -R PUID:PGID config`, `chmod 700 config`, start the stack.
+- Test a restore occasionally; an untested backup is a guess.
+- After upgrading from an earlier version, run `docker compose up -d` to recreate the restic container.
+  `--group-by host` in the prune step keeps old `/data`-only snapshots under the same retention policy.
+
+## Restic password (Docker secret)
+The restic passphrase is read from a file, not an environment variable, so it does not appear in
+`docker inspect`, `/proc/<pid>/environ`, `.env` or shell history. It is mounted into the backup
+container at `/run/secrets/restic_password` (`RESTIC_PASSWORD_FILE`).
+
+Create it once, readable only by root (the backup container runs as root):
+
+    sudo install -d -m 700 secrets
+    # a generated passphrase, written without a trailing echo to the terminal:
+    openssl rand -base64 32 | sudo tee secrets/restic_password >/dev/null
+    sudo chmod 600 secrets/restic_password
+
+Migrating from an older setup with `RESTIC_PASSWORD` in `.env`: keep the same value so the existing
+repo still opens. Write it with `printf '%s' 'the-password' | sudo tee secrets/restic_password >/dev/null`
+(no quotes or trailing text in the file), then delete the line from `.env` and run `docker compose up -d`.
+
+Recovery copy: store the passphrase off the host, e.g. `pass insert syncthing/restic`, and keep it
+with whoever restores. Without it the backups cannot be decrypted. Recreate the file on a new host with
+`pass show syncthing/restic | sudo tee secrets/restic_password >/dev/null`.
+
+Limits: root on the host can still read the file, and so can anyone who can start containers with
+the directory mounted, so this reduces exposure but is not a boundary against a compromised host.
+It matters most once copies of `backups/` leave the host (off-host copy, stolen disk).
+`secrets/` is gitignored.
+
+On SELinux hosts (Fedora) the file may need a container label or the backup container gets
+"permission denied": `sudo chcon -t container_file_t secrets/restic_password`.
 
 ## Recovery
 - Recent overwrite/delete: look in `data/.stversions/`.

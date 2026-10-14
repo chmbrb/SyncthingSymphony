@@ -2,3 +2,4 @@ config/
 backups/
 .env
 data/
+secrets/

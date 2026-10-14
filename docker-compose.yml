@@ -21,11 +21,18 @@ services:
     container_name: syncthing-backup
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    secrets:
+      - restic_password
     environment:
       - RESTIC_REPOSITORY=/repo
-      - RESTIC_PASSWORD=${RESTIC_PASSWORD:?set RESTIC_PASSWORD in .env}
+      - RESTIC_PASSWORD_FILE=/run/secrets/restic_password
       - BACKUP_INTERVAL=${BACKUP_INTERVAL:-3600}
     volumes:
       - ./data:/data:ro
+      - ./config:/config:ro
       - ./backups:/repo
       - ./backup/entrypoint.sh:/entrypoint.sh:ro
+
+secrets:
+  restic_password:
+    file: ./secrets/restic_password

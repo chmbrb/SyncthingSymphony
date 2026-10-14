@@ -8,5 +8,6 @@ services:
   restic:
     volumes:
       - ./data:/data:ro,z
+      - ./config:/config:ro,z
       - ./backups:/repo:z
       - ./backup/entrypoint.sh:/entrypoint.sh:ro,z
