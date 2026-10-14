@@ -4,7 +4,8 @@ Always-on Syncthing master ("Copy A") with hourly restic backups.
 
 ## Setup
 1. Create the directories yourself before the first `up`, owned by the account Syncthing will run as
-   (otherwise Docker creates them as root and Syncthing fails with `syncthing.lock: permission denied`):
+   (your login user, or a dedicated one, see "Dedicated user" below;
+   otherwise Docker creates them as root and Syncthing fails with `syncthing.lock: permission denied`):
    `mkdir -p data config backups && sudo chown -R "$(id -u):$(id -g)" data config && chmod 700 config`
    (`backups/` may stay root-owned.) Set `PUID`/`PGID` in `.env` to match `id -u` / `id -g`.
 2. `cp .env.example .env` (set `GUI_BIND` if needed) and create the restic secret (see "Restic password" below). `GUI_BIND=0.0.0.0`
@@ -15,6 +16,32 @@ Always-on Syncthing master ("Copy A") with hourly restic backups.
 6. Edit the default folder: path `/var/syncthing/data`, type **Send & Receive**,
    File Versioning > **Staggered** (max age 365 days).
 7. Add employee devices by device ID; accept each pairing manually.
+
+## Dedicated user (optional)
+Instead of your login account, run Syncthing as its own unprivileged system user. Only the files it
+owns are exposed if the process is compromised, and it is clearly separate from any human account.
+The user never logs in, so it needs no shell or home directory.
+
+    sudo useradd --system --no-create-home --shell /usr/sbin/nologin syncthing
+    id syncthing                  # note uid= and gid=; they may differ, e.g. 975 and 972
+
+Set `PUID` to the `uid` and `PGID` to the `gid` in `.env` (they need not be equal), then own the
+directories with them. Replace `UID` and `GID` with those numbers:
+
+    sudo chown -R UID:GID data config
+    sudo chmod 700 config
+    sudo chmod -R g+rwX data && sudo find data -type d -exec chmod g+s {} +   # optional, see below
+
+- Always write the numbers (or `syncthing:syncthing`) explicitly. Do not use `$(id -u)` here: it
+  would give your own ID, or `0` in a root shell.
+- Do not use `PUID=0`; that runs the process as root.
+- `backups/` stays root-owned (restic runs as root); `secrets/` is unchanged.
+- To edit files in `data/` yourself, add your account to the group: `sudo usermod -aG syncthing $USER`
+  (log out and back in). The group-write and setgid lines above let you do so; skip them for a
+  data directory only Syncthing writes.
+- If the container already ran as another user, re-run the `chown`, then `docker compose up -d`.
+  A `syncthing.lock: permission denied` error means the owner does not match `PUID`/`PGID`.
+- A host Syncthing instance is a separate service and does not need this user.
 
 ## Fedora / SELinux hosts
 The base `docker-compose.yml` works as-is on Windows and on Debian/Ubuntu (AppArmor). On
@@ -132,11 +159,12 @@ Notes:
 - Use Send Only (Copy A) / Receive Only (employee) for folders employees should never alter.
 
 ## Storage layout
-| Directory | Holds | Backed up by restic |
-|---|---|---|
-| `data/` | the synced files, plus each folder's `.stversions` | yes (read-only mount) |
-| `config/` | device key/cert, `config.xml` (folders, devices, GUI password hash) | yes, excluding the rebuildable index DB (`index*`) and the lock file |
-| `backups/` | the restic repository | no (it is the backup) |
+| Directory | Holds | Backed up by restic | Owner | Mode | Why |
+|---|---|---|---|---|---|
+| `data/` | the synced files, plus each folder's `.stversions` | yes (read-only mount) | `PUID:PGID` (Syncthing user) | default (755); 2775 if group-editing | Syncthing writes here; it must own it |
+| `config/` | device key/cert, `config.xml` (folders, devices, GUI password hash) | yes, excluding the rebuildable index DB (`index*`) and the lock file | `PUID:PGID` (Syncthing user) | `700` | holds the device private key; only Syncthing should read it |
+| `backups/` | the restic repository | no (it is the backup) | `root` | default (755) | restic runs as root; keeping it off the Syncthing user means a compromised Syncthing can't alter or delete backups |
+| `secrets/` | `restic_password` | no | `root` | `700` dir, `600` file | only root (Docker and the backup container) should read the passphrase |
 
 - Put `backups/` on a different physical disk than `data/` and `config/`; if they share a disk, one
   failure loses the data and its backups together. Plain bind mounts on the separate drive are enough;
