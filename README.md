@@ -54,6 +54,25 @@ SELinux hosts, add the overlay, which relabels the bind mounts with `:z`:
 Because `:z` relabels the host directories as shared container content, don't point it at
 system paths such as your home directory.
 
+## Windows (Docker Desktop)
+The base `docker-compose.yml` should work with Docker Desktop in Linux-container mode (WSL2 backend).
+This has not been tested; differences from Linux:
+
+- **Line endings.** `backup/entrypoint.sh` must keep LF endings or the backup container fails with
+  `not found` / `\r: command not found`. `.gitattributes` enforces `*.sh text eol=lf`; if you cloned
+  before it existed, re-checkout the file (`git rm --cached backup/entrypoint.sh && git add backup/entrypoint.sh`
+  after `git config core.autocrlf false`, or re-clone).
+- **Do not use `docker-compose.selinux.yml`** (Fedora/RHEL only). If you set `COMPOSE_FILE`, Windows
+  separates files with `;`, not `:`.
+- **Permissions.** Bind mounts from NTFS (`C:\...`) have no Unix permissions, so the `chown` / `chmod 700`
+  steps do nothing there and `config/` is not protected. For the Linux behaviour in this README, keep the
+  project inside the WSL2 filesystem (e.g. `\\wsl$\Ubuntu\home\<you>\...`) and run the setup commands
+  from a WSL shell (`openssl`, `tee`, `useradd` and `chown` have no PowerShell equivalent).
+- **Speed and locking.** NTFS paths mounted into WSL2 are slow and restic repo locking can misbehave
+  there; the WSL2 filesystem avoids both.
+- **Firewall.** Use a Windows Defender Firewall inbound rule for TCP/UDP 22000 (and optionally UDP
+  21027) instead of `firewall-cmd`. Add devices by `tcp://<windows-host-ip>:22000`.
+
 ## Firewall (Fedora / firewalld)
 Other devices need the sync port (and, optionally, discovery) open on the machine running the container:
 
