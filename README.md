@@ -208,6 +208,25 @@ It matters most once copies of `backups/` leave the host (off-host copy, stolen 
 On SELinux hosts (Fedora) the file may need a container label or the backup container gets
 "permission denied": `sudo chcon -t container_file_t secrets/restic_password`.
 
+## File versioning (Copy A and employee devices)
+Versioning is a per-device setting. A device archives a file in that folder's `.stversions` only when
+a sync overwrites or deletes it there.
+
+- **Copy A:** Staggered, 365 days (Setup step 5 / each segregated folder). First recovery layer.
+- **Employee devices (recommended):** enable it when accepting the folder (Edit > File Versioning).
+  If Copy A pushes a corrupted or wrongly edited file down, the employee's previous local version
+  is otherwise gone. Staggered with ~30 days suits most cases; Trash Can (keep deleted/replaced
+  files for a set number of days) is the simplest for a small file such as a KeePass database.
+- It uses a little disk space, negligible for a password database.
+
+Limits:
+- Employees control their own device, so their versions are not a security boundary. They do not
+  replace Copy A's versions or the restic snapshots.
+- Restoring a file from `.stversions` on an employee device is a local change; it syncs back to
+  Copy A and every other device as a new version. Restore carefully, and pause sharing first if the
+  bad version is still spreading.
+- Works the same for Receive Only folders.
+
 ## Recovery
 - Recent overwrite/delete: look in `data/.stversions/`.
 - Anything else: `docker compose exec restic restic snapshots`, then
