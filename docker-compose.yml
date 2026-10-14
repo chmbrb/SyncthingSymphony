@@ -1,5 +1,14 @@
+# Docker keeps every container's output forever by default. Cap each container at 3 files of 10 MB (30 MB), oldest dropped first.
+# Override with LOG_MAX_SIZE and LOG_MAX_FILE in .env.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${LOG_MAX_SIZE:-10m}"
+    max-file: "${LOG_MAX_FILE:-3}"
+
 services:
   syncthing:
+    logging: *default-logging
     image: syncthing/syncthing:latest
     container_name: syncthing
     hostname: syncthing-master
@@ -17,6 +26,7 @@ services:
       - "21027:21027/udp"
 
   restic:
+    logging: *default-logging
     image: restic/restic:latest
     container_name: syncthing-backup
     restart: unless-stopped
