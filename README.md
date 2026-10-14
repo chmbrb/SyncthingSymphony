@@ -3,18 +3,18 @@
 Always-on Syncthing master ("Copy A") with hourly restic backups.
 
 ## Setup
-0. Create the directories yourself before the first `up`, owned by the account Syncthing will run as
+1. Create the directories yourself before the first `up`, owned by the account Syncthing will run as
    (otherwise Docker creates them as root and Syncthing fails with `syncthing.lock: permission denied`):
    `mkdir -p data config backups && sudo chown -R "$(id -u):$(id -g)" data config && chmod 700 config`
    (`backups/` may stay root-owned.) Set `PUID`/`PGID` in `.env` to match `id -u` / `id -g`.
-1. `cp .env.example .env` (set `GUI_BIND` if needed) and create the restic secret (see "Restic password" below). `GUI_BIND=0.0.0.0`
+2. `cp .env.example .env` (set `GUI_BIND` if needed) and create the restic secret (see "Restic password" below). `GUI_BIND=0.0.0.0`
    exposes the GUI to the whole LAN: set the GUI password immediately, or bind to a specific LAN IP.
-2. `docker compose up -d`
-3. Open http://127.0.0.1:8384, set a GUI username/password immediately.
-4. In the GUI: Actions > Settings > Connections: disable Global Discovery and Relaying (LAN only).
-5. Edit the default folder: path `/var/syncthing/data`, type **Send & Receive**,
+3. `docker compose up -d`
+4. Open http://127.0.0.1:8384, set a GUI username/password immediately.
+5. In the GUI: Actions > Settings > Connections: disable Global Discovery and Relaying (LAN only).
+6. Edit the default folder: path `/var/syncthing/data`, type **Send & Receive**,
    File Versioning > **Staggered** (max age 365 days).
-6. Add employee devices by device ID; accept each pairing manually.
+7. Add employee devices by device ID; accept each pairing manually.
 
 ## Fedora / SELinux hosts
 The base `docker-compose.yml` works as-is on Windows and on Debian/Ubuntu (AppArmor). On
