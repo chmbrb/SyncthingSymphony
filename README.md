@@ -17,6 +17,25 @@ Always-on Syncthing master ("Copy A") with hourly restic backups.
    File Versioning > **Staggered** (max age 365 days).
 7. Add employee devices by device ID; accept each pairing manually.
 
+## Check `.env` matches the directory owners
+`.env` is per host. If it is overwritten (a copy from another machine, an rsync, a fresh clone) with
+different `PUID`/`PGID`, Syncthing crash-loops with `syncthing.lock: permission denied`, even though
+the directory owners look right by name. Compare the numbers before `docker compose up`:
+
+    grep -E '^(PUID|PGID)' .env
+    ls -ldn data config          # owner and group columns, as numbers
+
+They must be identical. If not, fix `.env` (or `sudo chown -R PUID:PGID data config`). On an SELinux
+host also confirm `COMPOSE_FILE` is still set, or `docker compose config | grep :z` shows the labels.
+
+When syncing the project directory between machines, leave out host-specific and live state:
+
+    rsync -a --exclude='.env' --exclude='data/' --exclude='config/' --exclude='backups/' \
+      --exclude='secrets/' --exclude='.git/' ./ user@host:/path/
+
+Never sync `data/`, `config/` or `backups/` this way; it can overwrite live Syncthing state and the
+restic repository.
+
 ## Dedicated user (optional)
 Instead of your login account, run Syncthing as its own unprivileged system user. Only the files it
 owns are exposed if the process is compromised, and it is clearly separate from any human account.
