@@ -252,6 +252,30 @@ Limits:
   `docker compose exec restic restic restore <id> --target /tmp/restore --include /data/<file>`
   (copy out with `docker compose cp`), and place the file back in `data/`.
   If restoring over a corrupted file, pause peers first so the bad version doesn't win.
+- **Preview before restoring** with the backup browser (below), or list a snapshot from the CLI:
+  `docker compose exec restic restic ls <id> /data`
+
+### Backup browser (web UI)
+A read-only page for finding the right version of a file before you restore anything. It lists
+snapshots, browses their files, shows one file's size and modified time across every snapshot
+(flagging where it changed), previews text files, downloads any version for inspection (e.g. open a
+KeePass copy in KeePass), and compares two snapshots (shift-click the second one). It cannot restore
+or modify anything; restoring stays a manual step from the Recovery list above.
+
+    docker compose --profile browse up -d --build browser     # then open http://127.0.0.1:8080
+    docker compose --profile browse stop browser              # stop it when done
+
+- It is a profile, so a plain `docker compose up -d` does not start it. Leave it stopped between uses.
+- The repo is mounted read-only and the container is read-only with all capabilities dropped. It needs
+  the restic passphrase (same Docker secret), so it runs as root inside the container.
+- No login: it shows file contents, so it binds to `127.0.0.1` (`BROWSER_BIND`). For another machine use
+  `ssh -L 8080:127.0.0.1:8080 user@<host-ip>`. Changing `BROWSER_BIND` also needs `BROWSER_ALLOWED_HOSTS`
+  to list the hostname you browse to (Host-header check against DNS rebinding).
+- "Changed" compares size and modified time with the next-older snapshot, not file contents. Preview or
+  download to confirm. A snapshot only contains what existed at backup time (hourly), so a version
+  created and replaced between two runs will not appear.
+- Browsing can be slow on a large repo (each file-history view reads every snapshot).
+- Syncthing's own `.stversions` copies are included in snapshots, so they appear under `/data/<folder>/.stversions`.
 
 ## Threat model
 An authorized device (Eve) can still write bad data; it will propagate. Versioning and

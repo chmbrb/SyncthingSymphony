@@ -43,6 +43,33 @@ services:
       - ./backups:/repo
       - ./backup/entrypoint.sh:/entrypoint.sh:ro
 
+  # Read-only web UI for browsing snapshots and previewing file versions before restoring.
+  # Start on demand: `docker compose --profile browse up -d browser` (then http://127.0.0.1:8080).
+  browser:
+    profiles: ["browse"]
+    logging: *default-logging
+    build: ./browser
+    container_name: syncthing-backup-browser
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    secrets:
+      - restic_password
+    environment:
+      - RESTIC_REPOSITORY=/repo
+      - RESTIC_PASSWORD_FILE=/run/secrets/restic_password
+      - RESTIC_CACHE_DIR=/tmp/restic-cache
+      - ALLOWED_HOSTS=${BROWSER_ALLOWED_HOSTS:-127.0.0.1,localhost}
+    volumes:
+      - ./backups:/repo:ro
+    ports:
+      - "${BROWSER_BIND:-127.0.0.1}:8080:8080"
+
 secrets:
   restic_password:
     file: ./secrets/restic_password
